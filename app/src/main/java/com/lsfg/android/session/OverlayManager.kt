@@ -154,28 +154,26 @@ class OverlayManager(private val ctx: Context) {
         }
         Log.i(TAG, "Overlay host=${if (useTrusted) "a11y/TRUSTED" else "app/UNTRUSTED"}")
 
-        // No FLAG_NOT_TOUCHABLE: that flag, combined with TYPE_APPLICATION_OVERLAY, is
-        // what triggers the Android 12+ 0.8-alpha clamp. Pass-through is handled by an
-        // empty touchable region (installed right after addView).
+        // Application overlays keep the empty touchable region for pass-through:
+        // FLAG_NOT_TOUCHABLE would subject them to Android 12+ opacity checks.
+        // Trusted accessibility overlays are exempt from those checks, so explicitly
+        // disable touch handling there for Samsung devices that ignore the empty region.
         // FLAG_SECURE is intentionally absent: on MediaTek/OEM ROMs it composites the
         // window as opaque black on VirtualDisplays (MediaProjection), making every
         // captured frame black. Exclusion from capture is handled by installSkipScreenshot
-        // via the eSkipScreenshot SurfaceFlinger layer flag instead　　　　　　　
-    val baseflags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+        // via the eSkipScreenshot SurfaceFlinger layer flag instead.
+        val baseFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS orval baseFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
-        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
-        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
+                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
 
-val flags = if (useTrusted) {
-    baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-} else {
-    baseFlags
-}
+        val flags = if (useTrusted) {
+            baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+        } else {
+            baseFlags
+        }
 
         val params = WindowManager.LayoutParams(
             screenW,
