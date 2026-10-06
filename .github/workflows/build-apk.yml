@@ -1,0 +1,66 @@
+name: Build arm64 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out application
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          path: LSFG-Android-Application
+          persist-credentials: false
+
+      # CMake expects this library beside the application directory. The pinned
+      # revision matches upstream FrankBarretta/LSFG-Android's application revision.
+      - name: Check out native library and submodules
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: FrankBarretta/lsfg-vk-android
+          ref: b55b1820c81294b62c787384462eaef9bb6d6e7d
+          path: lsfg-vk-android
+          submodules: recursive
+          persist-credentials: false
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            LSFG-Android-Application/**/*.gradle.kts
+            LSFG-Android-Application/gradle.properties
+            LSFG-Android-Application/gradle/wrapper/gradle-wrapper.properties
+
+      - name: Install Android build tools
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;34.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
+
+      - name: Build signed arm64 debug APK
+        working-directory: LSFG-Android-Application
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --stacktrace :app:assembleDebug -Pandroid.injected.build.abi=arm64-v8a
+
+      - name: Upload APK
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: LSFG-Android-arm64-v8a-debug
+          path: LSFG-Android-Application/app/build/outputs/apk/debug/*arm64-v8a*.apk
+          if-no-files-found: error
+          retention-days: 14
