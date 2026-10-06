@@ -62,14 +62,21 @@ jobs:
         run: |
           python3 - <<'PY'
           import os
+          import shutil
           import subprocess
           import zipfile
           from pathlib import Path
 
-          apks = sorted(Path("app/build/outputs/apk/debug").rglob("*.apk"))
-          if len(apks) != 1:
-              raise SystemExit(f"Expected one arm64 APK, found {len(apks)}")
-          apk = apks[0]
+          apks = sorted(Path("app/build/outputs/apk").rglob("*.apk"))
+          print("Generated APKs:", [str(path) for path in apks], flush=True)
+          arm64_apks = []
+          for path in apks:
+              with zipfile.ZipFile(path) as archive:
+                  if "lib/arm64-v8a/liblsfg-android.so" in archive.namelist():
+                      arm64_apks.append(path)
+          if len(arm64_apks) != 1:
+              raise SystemExit(f"Expected one arm64 LSFG APK, found {len(arm64_apks)}")
+          apk = arm64_apks[0]
           with zipfile.ZipFile(apk) as archive:
               names = archive.namelist()
               libraries = [name for name in names if name.startswith("lib/") and name.endswith(".so")]
@@ -81,6 +88,9 @@ jobs:
                   raise SystemExit("APK contains a DLL or standalone shader binaries")
           signer = Path(os.environ["ANDROID_HOME"]) / "build-tools/34.0.0/apksigner"
           subprocess.run([str(signer), "verify", "--verbose", str(apk)], check=True)
+          artifact = Path("artifacts/LSFG-Android-arm64-v8a-debug.apk")
+          artifact.parent.mkdir(exist_ok=True)
+          shutil.copy2(apk, artifact)
           print(f"Verified APK: {apk}")
           PY
 
@@ -88,6 +98,6 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: LSFG-Android-arm64-v8a-debug
-          path: LSFG-Android-Application/app/build/outputs/apk/debug/**/*.apk
+          path: LSFG-Android-Application/artifacts/LSFG-Android-arm64-v8a-debug.apk
           if-no-files-found: error
           retention-days: 14
