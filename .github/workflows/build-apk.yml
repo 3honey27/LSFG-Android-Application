@@ -57,10 +57,37 @@ jobs:
           chmod +x gradlew
           ./gradlew --no-daemon --stacktrace :app:assembleDebug -Pandroid.injected.build.abi=arm64-v8a
 
+      - name: Verify APK contents and signature
+        working-directory: LSFG-Android-Application
+        run: |
+          python3 - <<'PY'
+          import os
+          import subprocess
+          import zipfile
+          from pathlib import Path
+
+          apks = sorted(Path("app/build/outputs/apk/debug").rglob("*.apk"))
+          if len(apks) != 1:
+              raise SystemExit(f"Expected one arm64 APK, found {len(apks)}")
+          apk = apks[0]
+          with zipfile.ZipFile(apk) as archive:
+              names = archive.namelist()
+              libraries = [name for name in names if name.startswith("lib/") and name.endswith(".so")]
+              if not libraries or any(not name.startswith("lib/arm64-v8a/") for name in libraries):
+                  raise SystemExit("APK must contain only arm64-v8a native libraries")
+              if "lib/arm64-v8a/liblsfg-android.so" not in names:
+                  raise SystemExit("Missing native LSFG library")
+              if any(name.lower().endswith((".dll", ".spv", ".dxbc", ".cso")) for name in names):
+                  raise SystemExit("APK contains a DLL or standalone shader binaries")
+          signer = Path(os.environ["ANDROID_HOME"]) / "build-tools/34.0.0/apksigner"
+          subprocess.run([str(signer), "verify", "--verbose", str(apk)], check=True)
+          print(f"Verified APK: {apk}")
+          PY
+
       - name: Upload APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: LSFG-Android-arm64-v8a-debug
-          path: LSFG-Android-Application/app/build/outputs/apk/debug/*arm64-v8a*.apk
+          path: LSFG-Android-Application/app/build/outputs/apk/debug/**/*.apk
           if-no-files-found: error
           retention-days: 14
