@@ -55,19 +55,25 @@ jobs:
         working-directory: LSFG-Android-Application
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon --stacktrace :app:assembleDebug -Pandroid.injected.build.abi=arm64-v8a
+          # The IDE ABI option redirects APKs and defaults to testOnly. Override
+          # both explicitly so the artifact has a known path and can be sideloaded.
+          ./gradlew --no-daemon --stacktrace :app:assembleDebug \
+            -Pandroid.injected.build.abi=arm64-v8a \
+            -Pandroid.injected.testOnly=false \
+            -Pandroid.injected.apk.location="$PWD/artifacts/generated"
 
       - name: Verify APK contents and signature
         working-directory: LSFG-Android-Application
         run: |
           python3 - <<'PY'
           import os
+          import re
           import shutil
           import subprocess
           import zipfile
           from pathlib import Path
 
-          apks = sorted(Path("app/build/outputs/apk").rglob("*.apk"))
+          apks = sorted(Path("artifacts/generated").rglob("*.apk"))
           print("Generated APKs:", [str(path) for path in apks], flush=True)
           arm64_apks = []
           for path in apks:
@@ -88,6 +94,14 @@ jobs:
                   raise SystemExit("APK contains a DLL or standalone shader binaries")
           signer = Path(os.environ["ANDROID_HOME"]) / "build-tools/34.0.0/apksigner"
           subprocess.run([str(signer), "verify", "--verbose", str(apk)], check=True)
+          aapt = signer.with_name("aapt")
+          manifest = subprocess.run(
+              [str(aapt), "dump", "xmltree", str(apk), "AndroidManifest.xml"],
+              check=True, capture_output=True, text=True,
+          ).stdout
+          test_only = re.search(r"android:testOnly.*\(type 0x12\)0x([0-9a-fA-F]+)", manifest)
+          if test_only and int(test_only.group(1), 16) != 0:
+              raise SystemExit("APK is testOnly and cannot be installed normally")
           artifact = Path("artifacts/LSFG-Android-arm64-v8a-debug.apk")
           artifact.parent.mkdir(exist_ok=True)
           shutil.copy2(apk, artifact)
