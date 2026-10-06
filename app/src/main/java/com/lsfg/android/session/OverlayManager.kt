@@ -160,13 +160,22 @@ class OverlayManager(private val ctx: Context) {
         // FLAG_SECURE is intentionally absent: on MediaTek/OEM ROMs it composites the
         // window as opaque black on VirtualDisplays (MediaProjection), making every
         // captured frame black. Exclusion from capture is handled by installSkipScreenshot
-        // via the eSkipScreenshot SurfaceFlinger layer flag instead.
-        val flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+        // via the eSkipScreenshot SurfaceFlinger layer flag instead　　　　　　　
+    val baseflags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
-                WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
-                WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS orval baseFlags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+        WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED or
+        WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+
+val flags = if (useTrusted) {
+    baseFlags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+} else {
+    baseFlags
+}
 
         val params = WindowManager.LayoutParams(
             screenW,
